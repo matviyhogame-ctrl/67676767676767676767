@@ -1,97 +1,56 @@
-name: Build Beer Visuals
+
+name: Build Windows Launcher
 
 on:
   push:
-    branches: [main, master]
-  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  build-mod:
-    name: Build Fabric Mod
-    runs-on: ubuntu-latest
+  build:
+    name: Build Windows EXE
+    runs-on: windows-2025
 
     steps:
-      - name: Checkout repository
+      - name: Download source code
         uses: actions/checkout@v4
 
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-          cache: gradle
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Build Fabric Mod
-        working-directory: mod
-        run: |
-          chmod +x gradlew
-          ./gradlew --no-daemon clean build
-
-      - name: Upload Fabric JAR
-        uses: actions/upload-artifact@v4
-        with:
-          name: beer-visuals-mod
-          path: mod/build/libs/*.jar
-          if-no-files-found: error
-
-  build-launcher:
-    name: Build Windows Launcher
-    needs: build-mod
-    runs-on: windows-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: npm
-          cache-dependency-path: launcher/package-lock.json
+          node-version: 22
+          package-manager-cache: false
 
-      - name: Download Fabric JAR
-        uses: actions/download-artifact@v4
-        with:
-          name: beer-visuals-mod
-          path: downloaded-mod
-
-      - name: Install Fabric JAR
-        shell: pwwsh
+      - name: Check project files
+        shell: pwsh
         run: |
-          $jar = Get-ChildItem -Path "downloaded-mod" -Filter "*.jar" |
-            Where-Object { $_.Name -notmatch "sources|javadoc" } |
-            Select-Object -First 1
-
-          if (-not $jar) {
-            throw "Fabric JAR not found"
+          if (!(Test-Path "launcher/package.json")) {
+            Write-Error "launcher/package.json not found!"
+            exit 1
           }
-
-          New-Item -ItemType Directory -Force "launcher/resources/mods" | Out-Null
-          Copy-Item -Path $jar.FullName `
-            -Destination "launcher/resources/mods/beer_visuals.jar"
 
       - name: Install dependencies
         working-directory: launcher
-        run: npm ci
-        continue-on-error: false
+        run: npm install
 
-      - name: Build Windows portable
+      - name: Build Windows EXE
         working-directory: launcher
-        run: npm run dist
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npm run build --if-present
 
-      - name: Upload Windows launcher
+      - name: Build with electron-builder
+        working-directory: launcher
+        run: npx electron-builder --win --x64
+
+      - name: Upload EXE
         uses: actions/upload-artifact@v4
         with:
-          name: BeerVisuals-Windows
-          path: launcher/dist/*.exe
+          name: Windows-Launcher
+          path: |
+            launcher/dist/*.exe
+            launcher/dist/*.msi
           if-no-files-found: error
+          retention-days: 14
