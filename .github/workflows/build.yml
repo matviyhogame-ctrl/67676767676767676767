@@ -1,0 +1,89 @@
+
+name: Build Beer Visuals
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-mod:
+    name: Build Fabric Mod
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build Fabric Mod
+        run: |
+          cd beer-launcher/mod
+          chmod +x gradlew
+          ./gradlew --no-daemon clean build
+
+      - name: Upload Fabric JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: beer-visuals-mod
+          path: beer-launcher/mod/build/libs/*.jar
+
+  build-launcher:
+    name: Build Windows Launcher
+    needs: build-mod
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: beer-visuals-mod
+          path: downloaded-mod
+
+      - name: Install Fabric JAR
+        shell: pwsh
+        run: |
+          $jar = Get-ChildItem downloaded-mod -Filter "*.jar" |
+            Where-Object { $_.Name -notmatch "sources|javadoc" } |
+            Select-Object -First 1
+
+          if (-not $jar) {
+            throw "Fabric JAR not found"
+          }
+
+          New-Item -ItemType Directory -Force `
+            "beer-launcher/launcher/resources/mods"
+
+          Copy-Item $jar.FullName `
+            "beer-launcher/launcher/resources/mods/beer_visuals.jar"
+
+      - name: Install dependencies
+        working-directory: beer-launcher/launcher
+        run: npm install --no-audit --no-fund
+
+      - name: Build EXE
+        working-directory: beer-launcher/launcher
+        run: npm run dist
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Upload EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: BeerVisuals-Windows
+          path: beer-launcher/launcher/dist/*.exe
+          if-no-files-found: error
