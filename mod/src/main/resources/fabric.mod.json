@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "beer_visuals",
+  "version": "2.1.0",
+  "name": "Beer Visuals",
+  "description": "Beer Visuals client for Minecraft 1.16.5 with HUD, visuals and optional inventory quality-of-life modules.",
+  "authors": ["Beer"],
+  "environment": "client",
+  "entrypoints": {
+    "client": ["beerlegit.BeerLegit"]
+  },
+  "depends": {
+    "fabricloader": ">=0.14.0",
+    "fabric": "*",
+    "minecraft": "1.16.5"
+  }
+}
